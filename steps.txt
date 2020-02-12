@@ -1,0 +1,174 @@
+Mongodb 
+
+How many replicas?
+KMS Key encryption
+Segrartion of DBs
+For now we go with single replicaset with multiple DBs 
+
+
+Kafka:
+
+How many replicas : 3
+Data encryption
+Active Active mirror
+or Active Passive mirror
+
+SSL certficate required CA:
+
+
+Sizing: 
+
+ask conflunent if they support extrenal CA
+Get support on Kafka mirroring
+
+k create ns operator
+
+Install operator
+
+helm install \
+operator \
+./confluent-operator -f \
+./providers/gcp.yaml \
+--namespace operator \
+--set operator.enabled=true
+
+Install Zookeper
+
+helm install \
+zookeeper \
+./confluent-operator -f \
+./providers/gcp.yaml \
+--namespace operator \
+--set zookeeper.enabled=true
+
+
+Install Kafaka brokers
+
+helm install \
+kafka \
+./confluent-operator -f \
+./providers/gcp.yaml \
+--namespace operator \
+--set kafka.enabled=true --set metricReporter.enabled=true
+
+
+#Install Kafka replicator ???
+
+
+Remove the password from key:
+openssl rsa -in server.key -out server.key1
+
+Remove the password from certificate then copy files likes this:
+cp certnew.cer /tmp/server-bundle.pem
+cp root-new.txt /tmp/client-ca.pem
+cp server.key1 /tmp/server-key.pem
+
+
+helm install \
+-f ./providers/gcp.yaml \
+kafka \
+--namespace operator \
+--set kafka.enabled=true \
+--set kafka.tls.enabled=true \
+--set kafka.metricReporter.tls.enabled=true \
+--set kafka.tls.cacerts="$(cat /tmp/client-ca.pem)" \
+--set kafka.tls.fullchain="$(cat /tmp/server-bundle.pem)" \
+--set kafka.tls.privkey="$(cat /tmp/server-key.pem)" \
+./confluent-operator
+
+
+Self signed
+
+
+openssl genrsa -des3 -out rootCA.key 4096
+openssl req -x509 -new -nodes -key rootCA.key -sha256 -days 1024 -out rootCA.crt
+
+
+
+openssl genrsa -out kafkaserver.key 2048
+
+
+openssl req -new -key kafkaserver.key -out kafkaserver.csr -config san.cnf
+
+
+verfify 
+
+openssl req -in kafkaserver.csr -noout -text
+
+openssl x509 -req -in kafkaserver.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out kafkaserver.crt -days 500 -sha256
+
+verify cert
+openssl x509 -in kafkaserver.crt -text -noout
+
+ab-shared.kafka.paas.arabbank.plc
+
+
+
+cp kafkaserver.crt /tmp/server-bundle.pem
+cp rootCA.crt /tmp/client-ca.pem
+cp kafkaserver.key /tmp/server-key.pem
+
+
+=======
+
+Create client certs:
+
+create trustore:
+keytool -keystore servertruststore.jks -alias CARoot -import -file rootCA.crt
+
+
+openssl pkcs12 -export -in kafkaserver.crt -inkey kafkaserver.key -name kafkaserver -password pass:test1234 -out kafkaserver.p12
+
+keytool -importkeystore -srckeystore  kafkaserver.p12  -srcstoretype pkcs12 -destkeystore  kafkaserver-keystore.jks -deststoretype jks
+
+
+
+Create client keys:
+openssl genrsa -out kafkauser.key 2048
+
+openssl req -new -key kafkauser.key -out kafkauser.csr -config san.cnf
+
+openssl req -new -key kafkauser.key -out kafkauser.csr 
+
+openssl x509 -req -in kafkauser.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out kafkauser.crt -days 500 -sha256
+
+openssl pkcs12 -export -in kafkauser.crt -inkey kafkauser.key -name kafkauser -password pass:test1234 -out kafkauser.p12
+
+keytool -importkeystore -srckeystore  kafkauser.p12  -srcstoretype pkcs12 -destkeystore  kafkauser-keystore.jks -deststoretype jks
+
+
+
+
+Create client admin:
+openssl genrsa -out kafkaanoopl.key 2048
+
+openssl req -new -key kafkaanoopl.key -out kafkaanoopl.csr
+
+
+openssl x509 -req -in kafkaanoopl.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out kafkaanoopl.crt -days 500 -sha256
+
+openssl pkcs12 -export -in kafkaanoopl.crt -inkey kafkaanoopl.key -name kafkaanoopl -password pass:test1234 -out kafkaanoopl.p12
+
+keytool -importkeystore -srckeystore  kafkaanoopl.p12  -srcstoretype pkcs12 -destkeystore  kafkaanoopl-keystore.jks -deststoretype jks
+
+
+
+
+Internal CA
+Server:
+
+openssl genrsa -out kafkaserver.key 2048
+openssl req -new -key kafkaserver.key -out kafkaserver.csr -config san.cnf
+
+Admin user:
+
+openssl genrsa -out kafkaadmin.key 2048
+
+openssl req -new -key kafkaadmin.key -out kafkaadmin.csr
+
+
+openssl genrsa -out onboarding.key 2048
+
+openssl req -new -key onboarding.key -out onboarding.csr
+
+
